@@ -8,9 +8,10 @@ import type { Note } from '@/types/notes'
 
 interface NoteCardProps {
     note: Note
+    onClick?: (note: Note) => void
 }
 
-export function NoteCard({ note }: NoteCardProps) {
+export function NoteCard({ note, onClick }: NoteCardProps) {
     const { deleteNote, selectNote } = useNotesStore()
     const [showMenu, setShowMenu] = useState(false)
 
@@ -22,8 +23,18 @@ export function NoteCard({ note }: NoteCardProps) {
     }
 
     const handleEdit = () => {
-        selectNote(note)
+        if (onClick) {
+            onClick(note)
+        } else {
+            selectNote(note)
+        }
         setShowMenu(false)
+    }
+
+    const handleCardClick = () => {
+        if (onClick) {
+            onClick(note)
+        }
     }
 
     const truncateContent = (content: string, maxLength = 150) => {
@@ -33,7 +44,10 @@ export function NoteCard({ note }: NoteCardProps) {
     }
 
     return (
-        <div className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow relative">
+        <div
+            className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow relative cursor-pointer"
+            onClick={handleCardClick}
+        >
             {/* Menu */}
             <div className="absolute top-3 right-3">
                 <button

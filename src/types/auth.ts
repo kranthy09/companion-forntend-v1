@@ -13,7 +13,7 @@ export interface User {
 }
 
 export interface LoginData {
-    username: string // email
+    username: string    // Changed from email to username
     password: string
 }
 

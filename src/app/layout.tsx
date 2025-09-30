@@ -1,9 +1,9 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next'
 import { Inter, Crimson_Text } from 'next/font/google'
-import './globals.css'
 import { AuthProvider } from '@/components/providers/auth-provider'
 import { AppLayout } from '@/components/layout/app-layout'
+import './globals.css'
 
 const inter = Inter({
   subsets: ['latin'],

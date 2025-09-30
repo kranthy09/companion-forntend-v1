@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Search, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import type { Note } from '@/types/notes'
+import { NoteEditor } from '@/components/features/notes/notes-editor'
 
 export default function Dashboard() {
   const router = useRouter()
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [recentNotes, setRecentNotes] = useState<Note[]>([])
   const [currentSlide, setCurrentSlide] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showEditor, setShowEditor] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -37,7 +39,7 @@ export default function Dashboard() {
   if (loading || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600">Loading</div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     )
   }
@@ -50,12 +52,17 @@ export default function Dashboard() {
 
   const handleCreateNote = () => {
     selectNote(null)
-    router.push('/notes/create')
+    setShowEditor(true)
+  }
+
+  const handleCloseEditor = () => {
+    setShowEditor(false)
+    selectNote(null)
   }
 
   const handleNoteClick = (note: Note) => {
     selectNote(note)
-    router.push(`/notes/${note.id}`)
+    setShowEditor(true)
   }
 
   const nextSlide = () => {
@@ -159,27 +166,32 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h3 className="text-sm font-medium text-gray-500 mb-2">Total Notes</h3>
-          <p className="text-2xl font-bold text-gray-900">{notes.length}</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h3 className="text-sm font-medium text-gray-500 mb-2">Words Written</h3>
-          <p className="text-2xl font-bold text-gray-900">
-            {notes.reduce((total, note) => total + note.words_count, 0)}
-          </p>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h3 className="text-sm font-medium text-gray-500 mb-2">This Week</h3>
-          <p className="text-2xl font-bold text-gray-900">
-            {notes.filter(note =>
-              new Date(note.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-            ).length}
-          </p>
-        </div>
-      </div>
+      {/* Note Editor Modal */}
+      {showEditor && (
+        <NoteEditor onClose={handleCloseEditor} />
+      )}
     </div>
+
   )
+  {/* Quick Stats */ }
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="bg-white p-6 rounded-lg border border-gray-200">
+      <h3 className="text-sm font-medium text-gray-500 mb-2">Total Notes</h3>
+      <p className="text-2xl font-bold text-gray-900">{notes.length}</p>
+    </div>
+    <div className="bg-white p-6 rounded-lg border border-gray-200">
+      <h3 className="text-sm font-medium text-gray-500 mb-2">Words Written</h3>
+      <p className="text-2xl font-bold text-gray-900">
+        {notes.reduce((total, note) => total + note.words_count, 0)}
+      </p>
+    </div>
+    <div className="bg-white p-6 rounded-lg border border-gray-200">
+      <h3 className="text-sm font-medium text-gray-500 mb-2">This Week</h3>
+      <p className="text-2xl font-bold text-gray-900">
+        {notes.filter(note =>
+          new Date(note.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        ).length}
+      </p>
+    </div>
+  </div>
 }

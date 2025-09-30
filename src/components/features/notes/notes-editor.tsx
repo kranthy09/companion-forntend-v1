@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { useNotesStore } from '@/stores/notes-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Save, X, Sparkles } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 import type { NoteCreate, NoteUpdate } from '@/types/notes'
+import { Save, Sparkles, X } from 'lucide-react'
 
 interface NoteEditorProps {
     onClose: () => void
@@ -95,23 +96,26 @@ export function NoteEditor({ onClose }: NoteEditorProps) {
                         className="text-lg font-medium"
                     />
 
-                    <Input
-                        placeholder="Tags (comma separated)"
-                        value={formData.tags.join(', ')}
-                        onChange={(e) => handleTagsChange(e.target.value)}
-                    />
-
                     <textarea
                         placeholder="Start writing..."
                         value={formData.content}
                         onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
                         className="w-full h-96 p-4 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-600"
                     />
+
+                    <Input
+                        placeholder="Tags (comma separated)"
+                        value={formData.tags.join(', ')}
+                        onChange={(e) => handleTagsChange(e.target.value)}
+                    />
                 </div>
 
                 {/* Footer */}
-                <div className="mt-4 text-sm text-gray-500">
-                    {formData.content.split(' ').filter(Boolean).length} words
+                <div className="mt-4 flex justify-between items-center text-sm text-gray-500">
+                    <span>{formData.content.split(' ').filter(Boolean).length} words</span>
+                    {selectedNote && (
+                        <span>Last updated: {formatDistanceToNow(new Date(selectedNote.updated_at))} ago</span>
+                    )}
                 </div>
             </div>
         </div>

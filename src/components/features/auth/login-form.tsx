@@ -12,7 +12,7 @@ export function LoginForm() {
     const { login, loading } = useAuthContext()
     const [error, setError] = useState('')
     const [formData, setFormData] = useState<LoginData>({
-        username: '',
+        username: '',      // Changed from username to email
         password: '',
     })
 

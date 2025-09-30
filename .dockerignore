@@ -1,3 +1,4 @@
+# .dockerignore
 node_modules
 .next
 .git
@@ -6,4 +7,4 @@ Dockerfile
 README.md
 .env.local
 .env.*.local
-.husky
+*.log

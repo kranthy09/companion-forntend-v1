@@ -1,4 +1,4 @@
-# Dockerfile - Development optimized
+# Dockerfile
 FROM node:20-alpine
 
 WORKDIR /app
@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json* ./
 
-# Install dependencies without prepare scripts
-RUN npm install --ignore-scripts
+# Install dependencies
+RUN npm install
 
 # Copy source code
 COPY . .
