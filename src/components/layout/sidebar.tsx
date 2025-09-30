@@ -45,7 +45,8 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
             </div>
 
             {/* Navigation */}
-            <nav className="flex flex-col h-full justify-between py-6">
+            <nav className="flex flex-col h-[calc(100%-4rem)] justify-between py-6">
+                {/* Top Navigation */}
                 <div className="space-y-2 px-3">
                     {navigation.map((item) => {
                         const isActive = pathname === item.href
