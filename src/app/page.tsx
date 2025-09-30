@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthContext } from '@/components/providers/auth-provider'
-import { AppLayout } from '@/components/layout/app-layout'
 import { useNotesStore } from '@/stores/notes-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,43 +14,33 @@ export default function Dashboard() {
   const router = useRouter()
   const { isAuthenticated, loading } = useAuthContext()
   const { notes, fetchNotes, selectNote } = useNotesStore()
+  const [recentNotes, setRecentNotes] = useState<Note[]>([])
+  const [currentSlide, setCurrentSlide] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
 
-  // Redirect if not authenticated
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.push('/auth/login')
     }
   }, [isAuthenticated, loading, router])
 
-  if (loading || !isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
-  return (
-    <AppLayout>
-      <DashboardContent />
-    </AppLayout>
-  )
-}
-
-function DashboardContent() {
-  const router = useRouter()
-  const { notes, fetchNotes, selectNote } = useNotesStore()
-  const [recentNotes, setRecentNotes] = useState<Note[]>([])
-  const [currentSlide, setCurrentSlide] = useState(0)
-  const [searchQuery, setSearchQuery] = useState('')
-
   useEffect(() => {
-    fetchNotes({ page: 1, page_size: 5, sort_by: 'updated_at', sort_order: 'desc' })
-  }, [])
+    if (isAuthenticated) {
+      fetchNotes({ page: 1, page_size: 5, sort_by: 'updated_at', sort_order: 'desc' })
+    }
+  }, [isAuthenticated])
 
   useEffect(() => {
     setRecentNotes(notes.slice(0, 5))
   }, [notes])
+
+  if (loading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600">Loading</div>
+      </div>
+    )
+  }
 
   const handleSearch = () => {
     if (searchQuery.trim()) {

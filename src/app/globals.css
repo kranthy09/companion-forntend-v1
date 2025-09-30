@@ -1,68 +1,13 @@
-/* src/app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 249 250 251;
-    --foreground: 17 24 39;
-    --primary: 37 99 235;
-    --primary-foreground: 255 255 255;
-    --secondary: 243 244 246;
-    --secondary-foreground: 17 24 39;
-    --border: 229 231 235;
-    --input: 229 231 235;
-    --ring: 37 99 235;
-    --radius: 0.5rem;
-  }
-
   * {
-    @apply border-border;
+    @apply border-gray-200; /* Use valid Tailwind class */
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
-  }
-
-  /* Reading-optimized typography */
-  .prose {
-    @apply text-gray-800 leading-relaxed;
-    font-family: var(--font-crimson);
-  }
-
-  .prose p {
-    @apply mb-4 text-base leading-7;
-  }
-
-  .prose h1, .prose h2, .prose h3 {
-    font-family: var(--font-inter);
-    @apply font-semibold text-gray-900;
-  }
-
-  /* Line clamp utilities for consistent text truncation */
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .line-clamp-3 {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  /* Smooth scrolling */
-  html {
-    scroll-behavior: smooth;
-  }
-
-  /* Focus styles for accessibility */
-  .focus-ring {
-    @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+    @apply bg-gray-50 text-gray-900 font-sans;
   }
 }
