@@ -22,7 +22,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
 
     if (!isAuthenticated) {
-        return <>{children}</>
+        return <div className="min-h-screen bg-gray-50">{children}</div>
     }
 
     return (
