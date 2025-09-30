@@ -33,7 +33,12 @@ export function LoginForm() {
     }
 
     const handleChange = (field: keyof LoginData) => (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData(prev => ({ ...prev, [field]: e.target.value }))
+        if (field === 'username') {
+            // Map email input to username field for backend
+            setFormData(prev => ({ ...prev, username: e.target.value }))
+        } else {
+            setFormData(prev => ({ ...prev, [field]: e.target.value }))
+        }
     }
 
     return (
