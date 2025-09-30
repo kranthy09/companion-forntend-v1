@@ -115,7 +115,7 @@ class APIClient {
         return this.request<T>(endpoint, {
             ...options,
             method: 'POST',
-            body: JSON.stringify(data),
+            body: data ? JSON.stringify(data) : undefined,
         }, skipAuth)
     }
 

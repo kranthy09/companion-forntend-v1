@@ -1,103 +1,196 @@
-import Image from "next/image";
+// src/app/page.tsx
+'use client'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuthContext } from '@/components/providers/auth-provider'
+import { AppLayout } from '@/components/layout/app-layout'
+import { useNotesStore } from '@/stores/notes-store'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Search, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import type { Note } from '@/types/notes'
 
-export default function Home() {
+export default function Dashboard() {
+  const router = useRouter()
+  const { isAuthenticated, loading } = useAuthContext()
+  const { notes, fetchNotes, selectNote } = useNotesStore()
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.push('/auth/login')
+    }
+  }, [isAuthenticated, loading, router])
+
+  if (loading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <AppLayout>
+      <DashboardContent />
+    </AppLayout>
+  )
+}
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+function DashboardContent() {
+  const router = useRouter()
+  const { notes, fetchNotes, selectNote } = useNotesStore()
+  const [recentNotes, setRecentNotes] = useState<Note[]>([])
+  const [currentSlide, setCurrentSlide] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    fetchNotes({ page: 1, page_size: 5, sort_by: 'updated_at', sort_order: 'desc' })
+  }, [])
+
+  useEffect(() => {
+    setRecentNotes(notes.slice(0, 5))
+  }, [notes])
+
+  const handleSearch = () => {
+    if (searchQuery.trim()) {
+      router.push(`/notes?search=${encodeURIComponent(searchQuery)}`)
+    }
+  }
+
+  const handleCreateNote = () => {
+    selectNote(null)
+    router.push('/notes/create')
+  }
+
+  const handleNoteClick = (note: Note) => {
+    selectNote(note)
+    router.push(`/notes/${note.id}`)
+  }
+
+  const nextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % Math.max(1, recentNotes.length - 2))
+  }
+
+  const prevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + Math.max(1, recentNotes.length - 2)) % Math.max(1, recentNotes.length - 2))
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto">
+      {/* Welcome Section */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2 font-serif">
+          Welcome back
+        </h1>
+        <p className="text-gray-600">
+          Continue your writing journey and capture new ideas
+        </p>
+      </div>
+
+      {/* Search and Create */}
+      <div className="mb-8 flex gap-4">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <Input
+            placeholder="Search your notes..."
+            className="pl-10 h-12 text-lg border-gray-200 focus:border-blue-300"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+          />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        <Button
+          onClick={handleCreateNote}
+          className="h-12 px-6 bg-blue-600 hover:bg-blue-700"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <Plus className="w-5 h-5 mr-2" />
+          Create Note
+        </Button>
+      </div>
+
+      {/* Recent Notes */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-gray-900">Recent Notes</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={prevSlide}
+              disabled={recentNotes.length <= 3}
+              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={nextSlide}
+              disabled={recentNotes.length <= 3}
+              className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {recentNotes.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+            <p className="text-gray-500 mb-4">No notes yet</p>
+            <Button onClick={handleCreateNote}>Create your first note</Button>
+          </div>
+        ) : (
+          <div className="overflow-hidden">
+            <div
+              className="flex transition-transform duration-300 ease-in-out"
+              style={{ transform: `translateX(-${currentSlide * (100 / 3)}%)` }}
+            >
+              {recentNotes.map((note) => (
+                <div
+                  key={note.id}
+                  className="w-1/3 flex-shrink-0 px-2"
+                >
+                  <div
+                    onClick={() => handleNoteClick(note)}
+                    className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all cursor-pointer h-48"
+                  >
+                    <h3 className="font-semibold text-lg mb-3 line-clamp-2 text-gray-900">
+                      {note.title}
+                    </h3>
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                      {note.content.substring(0, 120)}...
+                    </p>
+                    <div className="mt-auto flex justify-between items-center text-xs text-gray-500">
+                      <span>{note.words_count} words</span>
+                      <span>{formatDistanceToNow(new Date(note.updated_at))} ago</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">Total Notes</h3>
+          <p className="text-2xl font-bold text-gray-900">{notes.length}</p>
+        </div>
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">Words Written</h3>
+          <p className="text-2xl font-bold text-gray-900">
+            {notes.reduce((total, note) => total + note.words_count, 0)}
+          </p>
+        </div>
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">This Week</h3>
+          <p className="text-2xl font-bold text-gray-900">
+            {notes.filter(note =>
+              new Date(note.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            ).length}
+          </p>
+        </div>
+      </div>
     </div>
-  );
+  )
 }

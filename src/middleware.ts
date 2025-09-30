@@ -18,7 +18,7 @@ export function middleware(request: NextRequest) {
 
     // Redirect authenticated users from auth pages
     if (PUBLIC_ROUTES.includes(pathname) && token && pathname.startsWith('/auth/')) {
-        return NextResponse.redirect(new URL('/notes', request.url))
+        return NextResponse.redirect(new URL('/', request.url))
     }
 
     return NextResponse.next()
