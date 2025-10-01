@@ -8,7 +8,7 @@ export interface Note {
     tags: string[]
     words_count: number
     ai_summary?: string
-    ai_enhanced_content?: string
+    ai_enhanced_content?: string | null
     has_ai_summary: boolean
     has_ai_enhancement: boolean
     created_at: string

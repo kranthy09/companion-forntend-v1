@@ -3,21 +3,21 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 const PUBLIC_ROUTES = ['/auth/login', '/auth/register', '/']
-const PROTECTED_ROUTES = ['/notes', '/tasks', '/profile']
+const PROTECTED_ROUTES = ['/notes', '/tasks', '/profile', '/settings']
 
 export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
-    const token = request.cookies.get('access_token')
+    const hasAccessToken = request.cookies.has('access_token')
 
-    // Check protected routes
+    // Protect routes requiring authentication
     if (PROTECTED_ROUTES.some(route => pathname.startsWith(route))) {
-        if (!token) {
+        if (!hasAccessToken) {
             return NextResponse.redirect(new URL('/auth/login', request.url))
         }
     }
 
-    // Redirect authenticated users from auth pages
-    if (PUBLIC_ROUTES.includes(pathname) && token && pathname.startsWith('/auth/')) {
+    // Redirect authenticated users away from auth pages
+    if (hasAccessToken && pathname.startsWith('/auth/')) {
         return NextResponse.redirect(new URL('/', request.url))
     }
 

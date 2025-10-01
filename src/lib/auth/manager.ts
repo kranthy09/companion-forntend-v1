@@ -1,5 +1,6 @@
 // src/lib/auth/manager.ts
 import { api } from '@/lib/api/endpoints'
+import { CookieManager } from '@/lib/cookies'
 import type { User, LoginData, RegisterData } from '@/types/auth'
 import type { APIResponse } from '@/types/api'
 
@@ -61,7 +62,12 @@ class AuthManager {
     }
 
     isAuthenticated(): boolean {
-        return !!this.user
+        // Check both user state and cookie
+        return !!this.user && CookieManager.isAuthenticated()
+    }
+
+    hasValidToken(): boolean {
+        return CookieManager.isAuthenticated()
     }
 }
 

@@ -1,5 +1,6 @@
 // src/lib/api/client.ts
 import { APIError, APIResponse } from '@/types/api'
+import { CookieManager } from '@/lib/cookies'
 
 class APIClient {
     private baseURL = process.env.NEXT_PUBLIC_API_URL!
@@ -8,12 +9,6 @@ class APIClient {
         resolve: (success: boolean) => void
         reject: (error: any) => void
     }> = []
-
-    private async getCsrfToken(): Promise<string> {
-        const cookies = document.cookie.split(';')
-        const csrfCookie = cookies.find(c => c.trim().startsWith('csrf_token='))
-        return csrfCookie?.split('=')[1] || ''
-    }
 
     private async refreshToken(): Promise<boolean> {
         if (this.isRefreshing) {
@@ -25,16 +20,14 @@ class APIClient {
         this.isRefreshing = true
 
         try {
-            // Get refresh token from HTTP-only cookie
             const response = await fetch(`${this.baseURL}/auth/refresh`, {
                 method: 'POST',
-                credentials: 'include', // Sends HTTP-only cookies
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
             })
 
             if (!response.ok) throw new Error('Refresh failed')
 
-            // New tokens are set via HTTP-only cookies by backend
             this.failedQueue.forEach(({ resolve }) => resolve(true))
             this.failedQueue = []
 
@@ -42,7 +35,6 @@ class APIClient {
         } catch (error) {
             this.failedQueue.forEach(({ reject }) => reject(error))
             this.failedQueue = []
-            // Redirect to login on refresh failure
             window.location.href = '/auth/login'
             throw error
         } finally {
@@ -64,9 +56,9 @@ class APIClient {
             )
         }
 
-        // Add CSRF token for non-GET requests
+        // Add CSRF token for non-GET requests using CookieManager
         if (fetchOptions.method && fetchOptions.method !== 'GET') {
-            const csrfToken = await this.getCsrfToken()
+            const csrfToken = CookieManager.getCSRFToken()
             if (csrfToken) headers['X-CSRF-Token'] = csrfToken
         }
 
@@ -74,17 +66,15 @@ class APIClient {
             const response = await fetch(`${this.baseURL}${endpoint}`, {
                 ...fetchOptions,
                 headers,
-                credentials: 'include', // Always include cookies
+                credentials: 'include',
             })
 
             const data = await response.json()
 
             if (!response.ok) {
-                // Handle token expiry - cookies will be refreshed automatically
                 if (response.status === 401 && !skipAuth && !endpoint.includes('/auth/')) {
                     try {
                         await this.refreshToken()
-                        // Retry original request
                         return this.request(endpoint, options)
                     } catch {
                         throw new APIError('AUTH_002', 'Session expired', 401)
@@ -106,7 +96,6 @@ class APIClient {
         }
     }
 
-    // HTTP methods
     get<T>(endpoint: string, options?: RequestInit) {
         return this.request<T>(endpoint, { ...options, method: 'GET' })
     }
