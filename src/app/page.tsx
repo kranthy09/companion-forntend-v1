@@ -186,7 +186,7 @@ export default function Dashboard() {
                     </p>
                     <div className="mt-auto flex justify-between items-center text-xs text-gray-500">
                       <span>{note.words_count} words</span>
-                      <span>{formatDistanceToNow(new Date(note.updated_at))} ago</span>
+                      <span>{formatDistanceToNow(new Date(note.updated_at), { addSuffix: true })} ago</span>
                     </div>
                   </div>
                 </div>

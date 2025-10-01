@@ -41,6 +41,7 @@ export const useNotesStore = create<NotesState & NotesActions>()(
 
             try {
                 const response = await api.notes.list(get().query)
+                console.log("notes list response", response)
                 set((state) => {
                     state.notes = response.data || []
                     state.loading = false
