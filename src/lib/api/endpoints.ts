@@ -14,6 +14,7 @@ import type {
     NotesQuery,
     TaskResponse,
 } from '@/types/notes'
+import type { Question } from '@/types/questions'
 import type { APIResponse, TaskStatus } from '@/types/api'
 
 export const api = {
@@ -61,6 +62,11 @@ export const api = {
         delete: (id: number) => apiClient.delete(`/notes/${id}`),
 
         stats: () => apiClient.get('/notes/stats'),
+
+    },
+    questions: {
+        list: (noteId: number) =>
+            apiClient.get<Question[]>(`/notes/${noteId}/questions`),
     },
 
     // AI/Ollama

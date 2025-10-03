@@ -21,6 +21,8 @@ import { formatDistanceToNow, format } from 'date-fns'
 import { NoteEditor } from '@/components/features/notes/notes-editor'
 import type { Note } from '@/types/notes'
 import { api } from '@/lib/api/endpoints'
+import { QuestionAnswer } from '@/components/features/notes/question-answer'
+
 
 export default function NoteDetailPage() {
     const router = useRouter()
@@ -301,6 +303,10 @@ export default function NoteDetailPage() {
                             : 'Click "Enhance with AI" to improve your note with AI-powered suggestions.'}
                     </p>
                 )}
+            </div>
+            {/* Questions & Answers Section */}
+            <div className="mt-6">
+                <QuestionAnswer noteId={noteId} />
             </div>
 
             {/* Metadata */}
