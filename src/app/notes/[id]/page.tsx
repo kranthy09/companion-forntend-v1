@@ -7,7 +7,8 @@ import { useAuthContext } from '@/components/providers/auth-provider'
 import { useNoteStreaming } from '@/hooks/useNoteStreaming'
 import { Button } from '@/components/ui/button'
 import { StreamingDisplay } from '@/components/features/notes/streaming-display'
-import { EnhancedContentDisplay } from '@/components/features/notes/enhanced-content-display'
+import { EnhancementCarousel } from '@/components/features/notes/enhanced-carousel'
+import { QuestionAnswer } from '@/components/features/notes/question-answer'
 import {
     ArrowLeft,
     Edit,
@@ -19,10 +20,8 @@ import {
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { NoteEditor } from '@/components/features/notes/notes-editor'
-import type { Note } from '@/types/notes'
+import type { Note, EnhancedNote } from '@/types/notes'
 import { api } from '@/lib/api/endpoints'
-import { QuestionAnswer } from '@/components/features/notes/question-answer'
-
 
 export default function NoteDetailPage() {
     const router = useRouter()
@@ -31,6 +30,7 @@ export default function NoteDetailPage() {
     const { selectNote, deleteNote } = useNotesStore()
 
     const [note, setNote] = useState<Note | null>(null)
+    const [enhancedVersions, setEnhancedVersions] = useState<EnhancedNote[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [showEditor, setShowEditor] = useState(false)
@@ -52,40 +52,13 @@ export default function NoteDetailPage() {
         },
         onComplete: (fullText, id) => {
             console.log('✅ Complete:', fullText.length, 'chars', id)
-            // Poll backend until enhanced content is saved
-            pollForEnhancedContent()
+            // Poll for new version
+            pollForNewVersion()
         },
         onError: (err) => {
             console.error('❌ Error:', err)
         },
     })
-
-    const pollForEnhancedContent = async () => {
-        let attempts = 0
-        const maxAttempts = 10
-        const interval = 1000 // 1 second
-
-        const poll = async () => {
-            attempts++
-            const response = await api.notes.get(noteId)
-
-            if (response.success && response.data?.ai_enhanced_content) {
-                // Enhanced content saved!
-                setNote(response.data)
-                clearContent() // Clear streaming display
-                return
-            }
-
-            if (attempts < maxAttempts) {
-                setTimeout(poll, interval)
-            } else {
-                console.warn('Enhanced content not saved after', maxAttempts, 'attempts')
-                // Keep streamed content visible as fallback
-            }
-        }
-
-        poll()
-    }
 
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
@@ -96,6 +69,7 @@ export default function NoteDetailPage() {
     useEffect(() => {
         if (isAuthenticated && noteId) {
             fetchNote()
+            fetchEnhancedVersions()
         }
     }, [isAuthenticated, noteId])
 
@@ -118,6 +92,42 @@ export default function NoteDetailPage() {
         } finally {
             setLoading(false)
         }
+    }
+
+    const fetchEnhancedVersions = async () => {
+        try {
+            const response = await api.notes.getEnhanced(noteId)
+            if (response.success && response.data) {
+                setEnhancedVersions(response.data)
+            }
+        } catch (err) {
+            console.error('Failed to fetch enhanced versions:', err)
+        }
+    }
+
+    const pollForNewVersion = async () => {
+        let attempts = 0
+        const maxAttempts = 10
+
+        const poll = async () => {
+            attempts++
+            const response = await api.notes.getEnhanced(noteId)
+
+            if (response.success && response.data && response.data.length > enhancedVersions.length) {
+                // New version created!
+                setEnhancedVersions(response.data)
+                clearContent()
+                return
+            }
+
+            if (attempts < maxAttempts) {
+                setTimeout(poll, 1000)
+            } else {
+                console.warn('New version not created after', maxAttempts, 'attempts')
+            }
+        }
+
+        poll()
     }
 
     const handleEdit = () => {
@@ -150,7 +160,7 @@ export default function NoteDetailPage() {
     }
 
     const handleEnhance = async () => {
-        clearContent() // Clear previous stream
+        clearContent()
         await startStream()
     }
 
@@ -180,7 +190,7 @@ export default function NoteDetailPage() {
         return <NoteEditor onClose={handleCloseEditor} />
     }
 
-    const hasEnhancedContent = !!note.ai_enhanced_content
+    const hasEnhancedVersions = enhancedVersions.length > 0
 
     return (
         <div className="max-w-4xl mx-auto px-4 py-8">
@@ -246,18 +256,21 @@ export default function NoteDetailPage() {
                 </div>
             </div>
 
-            {/* Saved Enhanced Content (if exists) */}
-            {hasEnhancedContent && (
+            {/* Enhanced Versions Carousel */}
+            {hasEnhancedVersions && (
                 <div className="mb-6">
                     <h2 className="text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">
-                        Enhanced Version
+                        Enhanced Versions ({enhancedVersions.length})
                     </h2>
-                    <EnhancedContentDisplay content={note.ai_enhanced_content!} />
+                    <EnhancementCarousel
+                        versions={enhancedVersions}
+                        onRefresh={fetchEnhancedVersions}
+                    />
                 </div>
             )}
 
             {/* AI Enhancement Controls */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <Sparkles className="w-5 h-5 text-purple-600" />
@@ -269,7 +282,7 @@ export default function NoteDetailPage() {
                     <Button
                         onClick={isStreaming ? stopStream : handleEnhance}
                         disabled={isStreaming && !content}
-                        variant={isStreaming ? 'outline' : 'ghost'}
+                        variant={isStreaming ? 'outline' : 'primary'}
                         size="sm"
                     >
                         {isStreaming ? (
@@ -280,13 +293,12 @@ export default function NoteDetailPage() {
                         ) : (
                             <>
                                 <Sparkles className="w-4 h-4 mr-2" />
-                                {hasEnhancedContent ? 'Re-enhance' : 'Enhance with AI'}
+                                {hasEnhancedVersions ? 'Create New Version' : 'Enhance with AI'}
                             </>
                         )}
                     </Button>
                 </div>
 
-                {/* Live Streaming Display */}
                 <StreamingDisplay
                     isStreaming={isStreaming}
                     content={content}
@@ -298,14 +310,15 @@ export default function NoteDetailPage() {
 
                 {!isStreaming && !content && !streamError && (
                     <p className="text-sm text-gray-600">
-                        {hasEnhancedContent
-                            ? 'Click "Re-enhance" to generate a new enhanced version.'
+                        {hasEnhancedVersions
+                            ? 'Create a new enhanced version with different AI suggestions.'
                             : 'Click "Enhance with AI" to improve your note with AI-powered suggestions.'}
                     </p>
                 )}
             </div>
+
             {/* Questions & Answers Section */}
-            <div className="mt-6">
+            <div className="mb-6">
                 <QuestionAnswer noteId={noteId} />
             </div>
 

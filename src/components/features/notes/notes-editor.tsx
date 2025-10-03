@@ -76,6 +76,7 @@ export function NoteEditor({ onClose }: NoteEditorProps) {
                     tags: formData.tags.filter(tag => tag.trim() !== ''),
                 }
                 const newNote = await createNote(createData)
+                console.log("newNote: ", newNote)
 
                 if (!newNote) {
                     throw new Error('Failed to create note')

@@ -8,7 +8,6 @@ export interface Note {
     tags: string[]
     words_count: number
     ai_summary?: string
-    ai_enhanced_content?: string | null
     has_ai_summary: boolean
     has_ai_enhancement: boolean
     created_at: string
@@ -37,6 +36,14 @@ export interface NotesQuery {
     page_size?: number
     sort_by?: 'created_at' | 'updated_at' | 'title'
     sort_order?: 'asc' | 'desc'
+}
+
+export interface EnhancedNote {
+    id: number
+    note_id: number
+    content: string
+    version_number: number
+    created_at: string
 }
 
 export interface TaskResponse {

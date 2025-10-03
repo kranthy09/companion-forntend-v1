@@ -15,6 +15,8 @@ import type {
     TaskResponse,
 } from '@/types/notes'
 import type { Question } from '@/types/questions'
+import type { EnhancedNote } from '@/types/notes'
+
 import type { APIResponse, TaskStatus } from '@/types/api'
 
 export const api = {
@@ -63,6 +65,10 @@ export const api = {
 
         stats: () => apiClient.get('/notes/stats'),
 
+        getEnhanced: (noteId: number) =>
+            apiClient.get<EnhancedNote[]>(`/notes/${noteId}/enhanced`),
+
+
     },
     questions: {
         list: (noteId: number) =>
@@ -84,6 +90,8 @@ export const api = {
 
         summarizeStream: (noteId: number) =>
             apiClient.post<TaskResponse>('/ollama/summarize/stream', { note_id: noteId }),
+        ask: (noteId: number, questionText: string) =>
+            apiClient.post('/ollama/ask', { note_id: noteId, question_text: questionText }),
     },
 
     // Tasks
