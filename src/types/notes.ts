@@ -46,6 +46,10 @@ export interface EnhancedNote {
     created_at: string
 }
 
+export interface CentralTaskResponse {
+    task_id: string
+}
+
 export interface TaskResponse {
     task_id: string
     note_id: number

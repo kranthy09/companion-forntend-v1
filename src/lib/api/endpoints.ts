@@ -8,12 +8,14 @@ import type {
     User,
 } from '@/types/auth'
 import type {
+    CentralTaskResponse,
     Note,
     NoteCreate,
     NoteUpdate,
     NotesQuery,
     TaskResponse,
 } from '@/types/notes'
+import type { Quiz, QuizAnswers, QuizSubmitResponse } from '@/types/quiz'
 import type { Question } from '@/types/questions'
 import type { EnhancedNote } from '@/types/notes'
 
@@ -67,6 +69,18 @@ export const api = {
 
         getEnhanced: (noteId: number) =>
             apiClient.get<EnhancedNote[]>(`/notes/${noteId}/enhanced`),
+
+        generateQuiz: (noteId: number) =>
+            apiClient.post<{ task_id: string }>(`/notes/${noteId}/quiz/generate`),
+
+        getQuizzes: (noteId: number) =>
+            apiClient.get<Quiz[]>(`/notes/${noteId}/quiz`),
+
+        submitQuiz: (quizId: number, answers: QuizAnswers) =>
+            apiClient.post<QuizSubmitResponse>('/notes/quiz/submit', {
+                quiz_id: quizId,
+                answers
+            }),
 
 
     },

@@ -22,6 +22,7 @@ import { formatDistanceToNow, format } from 'date-fns'
 import { NoteEditor } from '@/components/features/notes/notes-editor'
 import type { Note, EnhancedNote } from '@/types/notes'
 import { api } from '@/lib/api/endpoints'
+import { QuizSection } from '@/components/features/notes/quiz-section'
 
 export default function NoteDetailPage() {
     const router = useRouter()
@@ -320,6 +321,10 @@ export default function NoteDetailPage() {
             {/* Questions & Answers Section */}
             <div className="mb-6">
                 <QuestionAnswer noteId={noteId} />
+            </div>
+            {/* Quiz Section */}
+            <div className="mb-6">
+                <QuizSection noteId={noteId} />
             </div>
 
             {/* Metadata */}
