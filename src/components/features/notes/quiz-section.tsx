@@ -1,11 +1,36 @@
 // src/components/features/notes/quiz-section.tsx
 'use client'
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Brain, Loader2, CheckCircle, XCircle, ChevronRight, Trophy, RefreshCw, X } from 'lucide-react'
+import {
+    Brain,
+    Loader2,
+    CheckCircle,
+    XCircle,
+    ChevronRight,
+    Trophy,
+    RefreshCw,
+    X,
+    WifiOff,
+    RotateCcw,
+} from 'lucide-react'
 import { api } from '@/lib/api/endpoints'
-import { createWebSocket } from '@/lib/websockets'
-import type { Quiz, QuizAnswers, QuizSubmitResponse } from '@/types/quiz'
+import {
+    createTaskStatusWebSocket,
+    WebSocketManager,
+} from '@/lib/websockets'
+import {
+    saveQuizAttempt,
+    loadQuizAttempt,
+    removeQuizAttempt,
+} from '@/lib/storage/quiz-storage'
+import type {
+    Quiz,
+    QuizAnswers,
+    QuizSubmitResponse,
+    QuizQuestion
+} from '@/types/quiz'
 import type { TaskStatusMessage } from '@/types/task'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -13,7 +38,6 @@ interface QuizSectionProps {
     noteId: number
 }
 
-// Local state for quiz attempts (not persisted to backend)
 interface QuizAttempt {
     quizId: number
     answers: QuizAnswers
@@ -21,253 +45,478 @@ interface QuizAttempt {
 }
 
 export function QuizSection({ noteId }: QuizSectionProps) {
-    // Quiz data from backend
     const [quizzes, setQuizzes] = useState<Quiz[]>([])
     const [selectedQuizId, setSelectedQuizId] = useState<number | null>(null)
+    const [attempts, setAttempts] = useState<Map<number, QuizAttempt>>(
+        new Map()
+    )
 
-    // Local attempt state (allows retries without hitting backend)
-    const [currentAttempt, setCurrentAttempt] = useState<QuizAttempt | null>(null)
-
-    // UI states
     const [loading, setLoading] = useState(false)
     const [generating, setGenerating] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [taskStatus, setTaskStatus] = useState('')
     const [progress, setProgress] = useState(0)
+    const [error, setError] = useState<string | null>(null)
+    const [wsConnected, setWsConnected] = useState(false)
 
-    const wsRef = useRef<any>(null)
+    const wsRef = useRef<WebSocketManager | null>(null)
 
     useEffect(() => {
         fetchQuizzes()
-        return () => wsRef.current?.close()
+
+        return () => {
+            if (wsRef.current) {
+                wsRef.current.close()
+                wsRef.current = null
+            }
+        }
     }, [noteId])
 
     const fetchQuizzes = async () => {
         setLoading(true)
+        setError(null)
+
         try {
             const response = await api.notes.getQuizzes(noteId)
-            if (response.success && response.data) {
-                const sorted = [...response.data].reverse() // Newest first
-                setQuizzes(sorted)
 
-                // Auto-select first quiz if none selected
-                if (!selectedQuizId && sorted.length > 0) {
-                    selectQuiz(sorted[0].id)
+            if (response.success && response.data) {
+                setQuizzes(response.data)
+                restoreQuizState(response.data)
+
+                if (response.data.length > 0 && !selectedQuizId) {
+                    setSelectedQuizId(response.data[0].id)
                 }
             }
         } catch (err) {
             console.error('Failed to fetch quizzes:', err)
+            setError('Failed to load quizzes. Please try again.')
         } finally {
             setLoading(false)
         }
     }
 
-    const selectQuiz = useCallback((quizId: number) => {
-        setSelectedQuizId(quizId)
+    const restoreQuizState = (quizzes: Quiz[]) => {
+        const newAttempts = new Map<number, QuizAttempt>()
 
-        const quiz = quizzes.find(q => q.id === quizId)
-        if (!quiz) return
+        quizzes.forEach((quiz) => {
+            if (quiz.submission) {
+                // Submitted quiz - use backend data
+                const answers: QuizAnswers = {}
+                quiz.questions.forEach((q: QuizQuestion) => {
+                    if (q.user_answer) {
+                        answers[q.id] = q.user_answer
+                    }
+                })
 
-        // If quiz has submission, show results
-        if (quiz.submission) {
-            const submissionResults: QuizSubmitResponse = {
-                correct_count: quiz.submission.score,
-                total_count: quiz.submission.total,
-                results: quiz.questions.map(q => ({
-                    question_id: q.id,
-                    is_correct: q.is_correct || false,
-                    correct_answer: '',
-                    user_answer: q.user_answer || '',
-                    explanation: null
-                }))
-            }
-
-            const submissionAnswers: QuizAnswers = {}
-            quiz.questions.forEach(q => {
-                if (q.user_answer) {
-                    submissionAnswers[q.id] = q.user_answer
+                const results: QuizSubmitResponse = {
+                    correct_count: quiz.submission.score,
+                    total_count: quiz.submission.total,
+                    results: quiz.questions.map((q: QuizQuestion) => ({
+                        question_id: q.id,
+                        is_correct: q.is_correct ?? false,
+                        correct_answer: '',
+                        user_answer: q.user_answer || '',
+                        explanation: null,
+                    })),
                 }
-            })
 
-            setCurrentAttempt({
-                quizId,
-                answers: submissionAnswers,
-                results: submissionResults
-            })
-        } else {
-            // Fresh quiz - no attempt yet
-            setCurrentAttempt({
-                quizId,
-                answers: {},
-                results: null
-            })
-        }
-    }, [quizzes])
+                newAttempts.set(quiz.id, {
+                    quizId: quiz.id,
+                    answers,
+                    results,
+                })
+            } else {
+                // Not submitted - check localStorage
+                const savedAnswers = loadQuizAttempt(noteId, quiz.id)
 
-    // Re-select quiz when quizzes update
-    useEffect(() => {
-        if (selectedQuizId && quizzes.length > 0) {
-            selectQuiz(selectedQuizId)
-        }
-    }, [quizzes, selectedQuizId, selectQuiz])
+                if (savedAnswers && Object.keys(savedAnswers).length > 0) {
+                    newAttempts.set(quiz.id, {
+                        quizId: quiz.id,
+                        answers: savedAnswers,
+                        results: null,
+                    })
+                }
+            }
+        })
+
+        setAttempts(newAttempts)
+    }
 
     const handleGenerateQuiz = async () => {
         setGenerating(true)
-        setTaskStatus('Initializing...')
+        setError(null)
+        setTaskStatus('Initializing quiz generation...')
         setProgress(0)
 
         try {
             const response = await api.notes.generateQuiz(noteId)
+
             if (response.success && response.data?.task_id) {
-                connectToTaskStatus(response.data.task_id)
+                connectToGenerationStream(response.data.task_id)
+            } else {
+                throw new Error('Failed to start quiz generation')
             }
-        } catch (err: any) {
-            alert(err.message || 'Failed to generate quiz')
+        } catch (err) {
+            console.error('Quiz generation error:', err)
+            setError('Failed to generate quiz. Please try again.')
             setGenerating(false)
         }
     }
 
-    const connectToTaskStatus = (taskId: string) => {
-        wsRef.current = createWebSocket({
-            url: `/ws/task_status/${taskId}`,
-            onMessage: (data: TaskStatusMessage) => {
-                if (data.current && data.total) {
-                    setProgress(Math.round((data.current / data.total) * 100))
-                }
+    const connectToGenerationStream = useCallback((taskId: string) => {
+        if (wsRef.current) {
+            wsRef.current.close()
+        }
 
-                if (data.state === 'PENDING') {
-                    setTaskStatus(data.status || 'Waiting...')
-                } else if (data.state === 'STARTED' || data.state === 'PROGRESS') {
-                    setTaskStatus('Generating questions...')
-                } else if (data.state === 'SUCCESS') {
-                    setTaskStatus('Quiz ready!')
+        wsRef.current = createTaskStatusWebSocket(
+            taskId,
+            (message: TaskStatusMessage) => {
+                handleTaskStatusMessage(message)
+            },
+            (error) => {
+                console.error('WebSocket error:', error)
+                setWsConnected(false)
+                setError('Connection error. Retrying...')
+            }
+        )
+
+        const checkConnection = setInterval(() => {
+            if (wsRef.current) {
+                setWsConnected(wsRef.current.isConnected())
+            }
+        }, 1000)
+
+        if (wsRef.current) {
+            const originalClose = wsRef.current.close.bind(wsRef.current)
+            wsRef.current.close = (code?, reason?) => {
+                clearInterval(checkConnection)
+                originalClose(code, reason)
+            }
+        }
+
+        setWsConnected(true)
+    }, [])
+
+    const handleTaskStatusMessage = useCallback(
+        (message: TaskStatusMessage) => {
+            switch (message.state) {
+                case 'PENDING':
+                    setTaskStatus('Task queued...')
+                    setProgress(0)
+                    break
+
+                case 'STARTED':
+                    setTaskStatus('Starting quiz generation...')
+                    setProgress(10)
+                    break
+
+                case 'PROGRESS':
+                    setTaskStatus(message.status || 'Processing...')
+                    if (message.current && message.total) {
+                        const percentage = Math.round(
+                            (message.current / message.total) * 100
+                        )
+                        setProgress(Math.min(percentage, 95))
+                    }
+                    break
+
+                case 'SUCCESS':
+                    setTaskStatus('Quiz generated successfully!')
+                    setProgress(100)
                     setTimeout(() => {
                         fetchQuizzes()
-                        setGenerating(false)
-                        setTaskStatus('')
-                        setProgress(0)
-                        wsRef.current?.close()
-                    }, 500)
-                } else if (data.state === 'FAILURE') {
-                    setTaskStatus('Failed')
-                    setTimeout(() => {
-                        setGenerating(false)
-                        setTaskStatus('')
-                        setProgress(0)
-                    }, 2000)
+                        cleanupGeneration()
+                    }, 1000)
+                    break
+
+                case 'FAILURE':
+                    setError(
+                        message.status ||
+                        'Quiz generation failed. Please try again.'
+                    )
+                    cleanupGeneration()
+                    break
+            }
+        },
+        []
+    )
+
+    const cleanupGeneration = () => {
+        setGenerating(false)
+        setTaskStatus('')
+        setProgress(0)
+        setWsConnected(false)
+
+        if (wsRef.current) {
+            wsRef.current.close(1000, 'Task completed')
+            wsRef.current = null
+        }
+    }
+
+    const selectQuiz = useCallback((quizId: number) => {
+        setSelectedQuizId(quizId)
+        setError(null)
+    }, [])
+
+    const selectedQuiz = quizzes.find((q) => q.id === selectedQuizId)
+    const currentAttempt = selectedQuizId
+        ? attempts.get(selectedQuizId)
+        : null
+
+    const handleAnswerSelect = useCallback(
+        (questionId: number, answer: string) => {
+            if (!selectedQuizId) return
+
+            setAttempts((prev) => {
+                const newAttempts = new Map(prev)
+                const attempt = newAttempts.get(selectedQuizId) || {
+                    quizId: selectedQuizId,
+                    answers: {},
+                    results: null,
                 }
-            },
-            onError: () => {
-                setTaskStatus('Connection error')
-                setTimeout(() => {
-                    setGenerating(false)
-                    setTaskStatus('')
-                }, 2000)
-            }
-        })
-        wsRef.current.connect()
-    }
 
-    const handleAnswerSelect = (questionId: number, optionText: string) => {
-        if (!currentAttempt || currentAttempt.results) return // Read-only if submitted
+                const updatedAnswers = {
+                    ...attempt.answers,
+                    [questionId]: answer,
+                }
 
-        // Extract letter (A, B, C, D)
-        const letter = optionText.match(/^([A-D])\./)?.[1] || optionText
+                newAttempts.set(selectedQuizId, {
+                    ...attempt,
+                    answers: updatedAnswers,
+                })
 
-        setCurrentAttempt(prev => {
-            if (!prev) return prev
-            return {
-                ...prev,
-                answers: { ...prev.answers, [questionId]: letter }
-            }
-        })
-    }
+                // Save to localStorage
+                saveQuizAttempt(noteId, selectedQuizId, updatedAnswers)
 
-    const handleSubmit = async () => {
-        if (!currentAttempt || !selectedQuizId) return
+                return newAttempts
+            })
+        },
+        [selectedQuizId, noteId]
+    )
 
-        const selectedQuiz = quizzes.find(q => q.id === selectedQuizId)
-        if (!selectedQuiz) return
+    const handleSubmitQuiz = async () => {
+        if (!selectedQuizId || !currentAttempt) return
 
-        const allAnswered = selectedQuiz.questions.every(q => currentAttempt.answers[q.id])
-        if (!allAnswered) {
-            alert('Please answer all questions before submitting.')
+        const unansweredCount =
+            (selectedQuiz?.questions.length || 0) -
+            Object.keys(currentAttempt.answers).length
+
+        if (unansweredCount > 0) {
+            setError(
+                `Please answer all questions (${unansweredCount} remaining)`
+            )
             return
         }
 
         setSubmitting(true)
-        try {
-            const response = await api.notes.submitQuiz(selectedQuizId, currentAttempt.answers)
-            if (response.success && response.data) {
-                // Update local state with results
-                setCurrentAttempt(prev => prev ? { ...prev, results: response.data! } : null)
+        setError(null)
 
-                // Refresh quizzes to get persisted submission
+        try {
+            const response = await api.notes.submitQuiz(
+                selectedQuizId,
+                currentAttempt.answers
+            )
+
+            if (response.success && response.data) {
+                setAttempts((prev) => {
+                    const newAttempts = new Map(prev)
+                    newAttempts.set(selectedQuizId, {
+                        ...currentAttempt,
+                        results: response.data!,
+                    })
+                    return newAttempts
+                })
+
+                // Remove from localStorage (now in backend)
+                removeQuizAttempt(noteId, selectedQuizId)
+
+                // Refresh from backend
                 await fetchQuizzes()
+            } else {
+                throw new Error('Failed to submit quiz')
             }
-        } catch (err: any) {
-            alert(err.message || 'Failed to submit quiz')
+        } catch (err) {
+            console.error('Quiz submission error:', err)
+            setError('Failed to submit quiz. Please try again.')
         } finally {
             setSubmitting(false)
         }
     }
 
-    const handleTryAgain = () => {
+    const handleTryAgain = useCallback(() => {
         if (!selectedQuizId) return
 
-        // Reset to fresh attempt
-        setCurrentAttempt({
-            quizId: selectedQuizId,
-            answers: {},
-            results: null
+        setAttempts((prev) => {
+            const newAttempts = new Map(prev)
+            newAttempts.delete(selectedQuizId)
+            return newAttempts
         })
+
+        removeQuizAttempt(noteId, selectedQuizId)
+        setError(null)
+    }, [selectedQuizId, noteId])
+
+    const isAnswerSelected = (
+        questionId: number,
+        option: string
+    ): boolean => {
+        return currentAttempt?.answers[questionId] === option
     }
 
-    if (loading) {
+    const getOptionClassName = (
+        questionId: number,
+        option: string
+    ): string => {
+        const baseClasses =
+            'w-full text-left p-3 rounded-lg border-2 transition-all '
+
+        if (!currentAttempt?.results) {
+            const isSelected = isAnswerSelected(questionId, option)
+            return (
+                baseClasses +
+                (isSelected
+                    ? 'border-blue-500 bg-blue-50 font-medium'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50')
+            )
+        }
+
+        const question = selectedQuiz?.questions.find(
+            (q) => q.id === questionId
+        )
+
+        if (!question) return baseClasses + 'border-gray-200'
+
+        const userAnswer = question.user_answer
+        const isCorrect = question.is_correct
+
+        if (option === userAnswer) {
+            if (isCorrect === true) {
+                return (
+                    baseClasses +
+                    'border-green-500 bg-green-50 text-green-900 font-medium'
+                )
+            } else if (isCorrect === false) {
+                return (
+                    baseClasses +
+                    'border-red-500 bg-red-50 text-red-900 font-medium'
+                )
+            }
+        }
+
+        return baseClasses + 'border-gray-200 opacity-50'
+    }
+
+    const renderScoreSummary = () => {
+        if (!currentAttempt?.results) return null
+
+        const { correct_count, total_count } = currentAttempt.results
+        const percentage = Math.round((correct_count / total_count) * 100)
+        const isPerfect = correct_count === total_count
+
         return (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            <div
+                className={`rounded-lg p-6 mb-6 ${isPerfect
+                        ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200'
+                        : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200'
+                    }`}
+            >
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Trophy
+                            className={`w-8 h-8 ${isPerfect ? 'text-green-600' : 'text-blue-600'
+                                }`}
+                        />
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-900">
+                                Score: {correct_count}/{total_count}
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                                {percentage}% Correct
+                                {isPerfect && ' - Perfect Score! 🎉'}
+                            </p>
+                        </div>
+                    </div>
+                    <Button
+                        onClick={handleTryAgain}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                        Try Again
+                    </Button>
                 </div>
             </div>
         )
     }
 
-    const selectedQuiz = quizzes.find(q => q.id === selectedQuizId)
-    const isSubmitted = currentAttempt?.results !== null
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+            </div>
+        )
+    }
 
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                    <Brain className="w-5 h-5 text-purple-600" />
-                    <h2 className="text-lg font-semibold text-gray-900">Quiz Yourself</h2>
-                    {quizzes.length > 0 && <span className="text-sm text-gray-500">({quizzes.length})</span>}
-                </div>
-                <Button onClick={handleGenerateQuiz} disabled={generating} size="sm">
+        <div className="space-y-4">
+            <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-900">
+                    Knowledge Quiz
+                </h2>
+                <Button
+                    onClick={handleGenerateQuiz}
+                    disabled={generating}
+                    className="flex items-center gap-2"
+                >
                     {generating ? (
                         <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <Loader2 className="w-4 h-4 animate-spin" />
                             Generating...
                         </>
                     ) : (
                         <>
-                            <Brain className="w-4 h-4 mr-2" />
+                            <Brain className="w-4 h-4" />
                             Generate Quiz
                         </>
                     )}
                 </Button>
             </div>
 
-            {/* Generating Status */}
+            {generating && !wsConnected && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
+                    <WifiOff className="w-4 h-4 text-amber-600" />
+                    <p className="text-sm text-amber-900">
+                        Connecting to server...
+                    </p>
+                </div>
+            )}
+
+            {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+                    <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                        <p className="text-sm font-medium text-red-900">{error}</p>
+                    </div>
+                    <button
+                        onClick={() => setError(null)}
+                        className="text-red-600 hover:text-red-800"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+
             {generating && (
-                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-6 mb-4">
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-6">
                     <div className="flex items-start gap-4">
                         <Loader2 className="w-6 h-6 text-purple-600 animate-spin flex-shrink-0 mt-1" />
                         <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900 mb-2">{taskStatus || 'Preparing...'}</h3>
-                            <p className="text-sm text-gray-600 mb-3">AI is creating questions from your note.</p>
+                            <h3 className="font-semibold text-gray-900 mb-2">
+                                {taskStatus || 'Preparing...'}
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-3">
+                                AI is creating questions from your note.
+                            </p>
                             {progress > 0 && (
                                 <div>
                                     <div className="flex justify-between text-xs text-gray-600 mb-1">
@@ -275,7 +524,10 @@ export function QuizSection({ noteId }: QuizSectionProps) {
                                         <span>{progress}%</span>
                                     </div>
                                     <div className="h-2 bg-purple-200 rounded-full overflow-hidden">
-                                        <div className="h-full bg-purple-600 transition-all duration-300" style={{ width: `${progress}%` }} />
+                                        <div
+                                            className="h-full bg-purple-600 transition-all duration-300"
+                                            style={{ width: `${progress}%` }}
+                                        />
                                     </div>
                                 </div>
                             )}
@@ -284,169 +536,120 @@ export function QuizSection({ noteId }: QuizSectionProps) {
                 </div>
             )}
 
-            {/* Empty State */}
             {!generating && quizzes.length === 0 && (
-                <div className="text-center py-8">
+                <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
                     <Brain className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600 text-sm">No quizzes yet. Generate one to test your knowledge!</p>
+                    <p className="text-gray-600">
+                        No quizzes yet. Generate one to test your knowledge!
+                    </p>
                 </div>
             )}
 
-            {/* Quiz Content */}
-            {quizzes.length > 0 && (
-                <div className="space-y-4">
-                    {/* Quiz Tabs */}
-                    {quizzes.length > 1 && (
-                        <div className="flex gap-2 overflow-x-auto pb-2">
-                            {quizzes.map((quiz, index) => (
-                                <button
-                                    key={quiz.id}
-                                    onClick={() => selectQuiz(quiz.id)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${selectedQuizId === quiz.id
-                                            ? 'bg-purple-100 text-purple-700 border border-purple-300'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
-                                >
-                                    Quiz {quizzes.length - index}
-                                    {quiz.submission && (
-                                        <span className="ml-2 text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">
-                                            {quiz.submission.score}/{quiz.submission.total}
-                                        </span>
-                                    )}
-                                    <span className="ml-2 text-xs opacity-70">
-                                        {formatDistanceToNow(new Date(quiz.created_at), { addSuffix: true })}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    )}
+            {quizzes.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                    {quizzes.map((quiz, index) => {
+                        const hasSubmission = quiz.submission !== null
+                        const hasLocalAttempt = attempts.has(quiz.id)
 
-                    {/* Selected Quiz */}
-                    {selectedQuiz && currentAttempt && (
-                        <div>
-                            {isSubmitted ? (
-                                // Results View
-                                <div className="space-y-4">
-                                    {/* Score Card */}
-                                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-6">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="flex items-center gap-3">
-                                                <Trophy className="w-8 h-8 text-purple-600" />
-                                                <div>
-                                                    <h3 className="text-xl font-bold text-gray-900">
-                                                        {currentAttempt.results!.correct_count === currentAttempt.results!.total_count
-                                                            ? 'Perfect Score!'
-                                                            : 'Quiz Complete!'}
-                                                    </h3>
-                                                    <p className="text-sm text-gray-600">
-                                                        {currentAttempt.results!.correct_count} / {currentAttempt.results!.total_count} correct
-                                                    </p>
-                                                </div>
+                        return (
+                            <button
+                                key={quiz.id}
+                                onClick={() => selectQuiz(quiz.id)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${selectedQuizId === quiz.id
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                            >
+                                Quiz {index + 1}
+                                {hasSubmission && (
+                                    <CheckCircle className="w-3 h-3 inline-block ml-1 mb-0.5" />
+                                )}
+                                {!hasSubmission && hasLocalAttempt && (
+                                    <span className="ml-1 text-xs opacity-75">●</span>
+                                )}
+                                <span className="ml-2 text-xs opacity-75">
+                                    {formatDistanceToNow(new Date(quiz.created_at), {
+                                        addSuffix: true,
+                                    })}
+                                </span>
+                            </button>
+                        )
+                    })}
+                </div>
+            )}
+
+            {selectedQuiz && (
+                <div className="border border-gray-200 rounded-lg p-6">
+                    {renderScoreSummary()}
+
+                    <div className="space-y-6">
+                        {selectedQuiz.questions
+                            .sort((a, b) => a.id - b.id)
+                            .map((question, index) => (
+                                <div
+                                    key={question.id}
+                                    className="border border-gray-200 rounded-lg p-4"
+                                >
+                                    <div className="flex items-start gap-3 mb-4">
+                                        {currentAttempt?.results && (
+                                            <div className="flex-shrink-0">
+                                                {question.is_correct ? (
+                                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                                ) : (
+                                                    <XCircle className="w-5 h-5 text-red-600" />
+                                                )}
                                             </div>
-                                            <div className="text-3xl font-bold text-purple-600">
-                                                {Math.round((currentAttempt.results!.correct_count / currentAttempt.results!.total_count) * 100)}%
-                                            </div>
-                                        </div>
-                                        <Button onClick={handleTryAgain} variant="outline" size="sm">
-                                            <RefreshCw className="w-4 h-4 mr-2" />
-                                            Try Again
-                                        </Button>
+                                        )}
+                                        <p className="font-medium text-gray-900 flex-1">
+                                            {index + 1}. {question.question_text}
+                                        </p>
                                     </div>
 
-                                    {/* Question Results */}
-                                    {selectedQuiz.questions
-                                        .sort((a, b) => a.id - b.id)
-                                        .map((question, index) => {
-                                            const result = currentAttempt.results!.results.find(r => r.question_id === question.id)
-                                            if (!result) return null
-
-                                            return (
-                                                <div
-                                                    key={question.id}
-                                                    className={`p-4 rounded-lg border-2 ${result.is_correct
-                                                            ? 'bg-green-50 border-green-200'
-                                                            : 'bg-red-50 border-red-200'
-                                                        }`}
-                                                >
-                                                    <div className="flex items-start gap-3">
-                                                        {result.is_correct ? (
-                                                            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                                                        ) : (
-                                                            <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                                                        )}
-                                                        <div className="flex-1">
-                                                            <p className="font-medium text-gray-900 mb-2">
-                                                                {index + 1}. {question.question_text}
-                                                            </p>
-                                                            <p className={`text-sm ${result.is_correct ? 'text-green-700' : 'text-red-700'}`}>
-                                                                <strong>Your answer:</strong> {result.user_answer}
-                                                            </p>
-                                                            {result.explanation && !result.is_correct && (
-                                                                <p className="text-gray-700 text-sm mt-2 italic">
-                                                                    {result.explanation}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-                                </div>
-                            ) : (
-                                // Quiz Taking View
-                                <div className="space-y-6">
-                                    {selectedQuiz.questions
-                                        .sort((a, b) => a.id - b.id)
-                                        .map((question, index) => (
-                                            <div key={question.id} className="border border-gray-200 rounded-lg p-4">
-                                                <p className="font-medium text-gray-900 mb-3">
-                                                    {index + 1}. {question.question_text}
-                                                </p>
-                                                <div className="space-y-2">
-                                                    {question.options.map((option, optIndex) => {
-                                                        const optionLetter = option.match(/^([A-D])\./)?.[1] || option
-                                                        const isSelected = currentAttempt.answers[question.id] === optionLetter
-
-                                                        return (
-                                                            <label
-                                                                key={optIndex}
-                                                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-purple-50 border border-purple-200' : 'hover:bg-gray-50'
-                                                                    }`}
-                                                            >
-                                                                <input
-                                                                    type="radio"
-                                                                    name={`question-${question.id}`}
-                                                                    checked={isSelected}
-                                                                    onChange={() => handleAnswerSelect(question.id, option)}
-                                                                    className="w-4 h-4 text-purple-600"
-                                                                />
-                                                                <span className="text-gray-700">{option}</span>
-                                                            </label>
-                                                        )
-                                                    })}
-                                                </div>
-                                            </div>
+                                    <div className="space-y-2 ml-8">
+                                        {question.options.map((option) => (
+                                            <button
+                                                key={option}
+                                                onClick={() =>
+                                                    !currentAttempt?.results &&
+                                                    handleAnswerSelect(question.id, option)
+                                                }
+                                                disabled={!!currentAttempt?.results}
+                                                className={getOptionClassName(
+                                                    question.id,
+                                                    option
+                                                )}
+                                            >
+                                                <span className="font-medium mr-2">
+                                                    {option.charAt(0)}.
+                                                </span>
+                                                {option.substring(3)}
+                                            </button>
                                         ))}
-
-                                    <Button
-                                        onClick={handleSubmit}
-                                        disabled={submitting || selectedQuiz.questions.some(q => !currentAttempt.answers[q.id])}
-                                        className="w-full"
-                                    >
-                                        {submitting ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                Submitting...
-                                            </>
-                                        ) : (
-                                            <>
-                                                Submit Quiz
-                                                <ChevronRight className="w-4 h-4 ml-2" />
-                                            </>
-                                        )}
-                                    </Button>
+                                    </div>
                                 </div>
-                            )}
+                            ))}
+                    </div>
+
+                    {!currentAttempt?.results && (
+                        <div className="mt-6 flex justify-end">
+                            <Button
+                                onClick={handleSubmitQuiz}
+                                disabled={submitting}
+                                size="lg"
+                                className="flex items-center gap-2"
+                            >
+                                {submitting ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Submitting...
+                                    </>
+                                ) : (
+                                    <>
+                                        Submit Quiz
+                                        <ChevronRight className="w-4 h-4" />
+                                    </>
+                                )}
+                            </Button>
                         </div>
                     )}
                 </div>
