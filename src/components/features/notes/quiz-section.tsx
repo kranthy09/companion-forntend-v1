@@ -223,8 +223,17 @@ export function QuizSection({ noteId }: QuizSectionProps) {
                 case 'SUCCESS':
                     setTaskStatus('Quiz generated successfully!')
                     setProgress(100)
-                    setTimeout(() => {
-                        fetchQuizzes()
+                    setTimeout(async () => {
+                        await fetchQuizzes()
+
+                        // Select the newest quiz (first in array after fetch)
+                        setQuizzes((current) => {
+                            if (current.length > 0) {
+                                setSelectedQuizId(current[0].id)
+                            }
+                            return current
+                        })
+
                         cleanupGeneration()
                     }, 1000)
                     break
@@ -584,7 +593,11 @@ export function QuizSection({ noteId }: QuizSectionProps) {
 
                     <div className="space-y-6">
                         {selectedQuiz.questions
-                            .sort((a, b) => a.id - b.id)
+                            .sort((a, b) => {
+                                const orderA = (a as any).order ?? a.id
+                                const orderB = (b as any).order ?? b.id
+                                return orderA - orderB
+                            })
                             .map((question, index) => (
                                 <div
                                     key={question.id}

@@ -23,6 +23,8 @@ import { NoteEditor } from '@/components/features/notes/notes-editor'
 import type { Note, EnhancedNote } from '@/types/notes'
 import { api } from '@/lib/api/endpoints'
 import { QuizSection } from '@/components/features/notes/quiz-section'
+import { QuizSectionV2 } from '@/components/features/notes/quiz-section-v2'
+
 
 export default function NoteDetailPage() {
     const router = useRouter()
@@ -324,7 +326,7 @@ export default function NoteDetailPage() {
             </div>
             {/* Quiz Section */}
             <div className="mb-6">
-                <QuizSection noteId={noteId} />
+                <QuizSectionV2 noteId={noteId} />
             </div>
 
             {/* Metadata */}

@@ -379,7 +379,7 @@ export function createTaskStatusWebSocket(
     onMessage: (data: any) => void,
     onError?: (error: Event) => void
 ): WebSocketManager {
-    return createWebSocket(`/ws/task_status/?task_id=${taskId}`, {
+    return createWebSocket(`/ws/task_status/${taskId}`, {
         reconnectAttempts: 3,
         reconnectDelay: 2000,
         heartbeatInterval: 0, // Disable for short-lived connections
