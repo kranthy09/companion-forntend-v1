@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { StreamingDisplay } from '@/components/features/notes/streaming-display'
 import { EnhancementCarousel } from '@/components/features/notes/enhanced-carousel'
 import { QuestionAnswer } from '@/components/features/notes/question-answer'
+import { SummaryStream } from '@/components/features/notes/summary-stream'
+
 import {
     ArrowLeft,
     Edit,
@@ -22,7 +24,6 @@ import { formatDistanceToNow, format } from 'date-fns'
 import { NoteEditor } from '@/components/features/notes/notes-editor'
 import type { Note, EnhancedNote } from '@/types/notes'
 import { api } from '@/lib/api/endpoints'
-import { QuizSection } from '@/components/features/notes/quiz-section'
 import { QuizSectionV2 } from '@/components/features/notes/quiz-section-v2'
 
 
@@ -327,6 +328,10 @@ export default function NoteDetailPage() {
             {/* Quiz Section */}
             <div className="mb-6">
                 <QuizSectionV2 noteId={noteId} />
+            </div>
+            {/*Summary Section*/}
+            <div className="mb-6">
+                <SummaryStream noteId={noteId} />
             </div>
 
             {/* Metadata */}

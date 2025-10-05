@@ -16,9 +16,9 @@ import type {
     TaskResponse,
 } from '@/types/notes'
 import type { Quiz, QuizAnswers, QuizSubmitResponse } from '@/types/quiz'
+import type { SavedSummary } from '@/types/summary'
 import type { Question } from '@/types/questions'
 import type { EnhancedNote } from '@/types/notes'
-
 import type { APIResponse, TaskStatus } from '@/types/api'
 
 export const api = {
@@ -81,6 +81,8 @@ export const api = {
                 quiz_id: quizId,
                 answers
             }),
+        summaries: (noteId: number) =>
+            apiClient.get<SavedSummary[]>(`/notes/summaries/${noteId}`),
 
 
     },
@@ -102,8 +104,6 @@ export const api = {
         enhanceStream: (noteId: number) =>
             apiClient.post<TaskResponse>('/ollama/enhance/stream', { note_id: noteId }),
 
-        summarizeStream: (noteId: number) =>
-            apiClient.post<TaskResponse>('/ollama/summarize/stream', { note_id: noteId }),
         ask: (noteId: number, questionText: string) =>
             apiClient.post('/ollama/ask', { note_id: noteId, question_text: questionText }),
     },
