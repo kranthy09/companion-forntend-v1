@@ -3,6 +3,8 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { api } from '@/lib/api/endpoints'
 import type { Note, NoteCreate, NoteUpdate, NotesQuery } from '@/types/notes'
+import { enableMapSet } from 'immer'
+
 
 interface NotesState {
     notes: Note[]
@@ -10,6 +12,15 @@ interface NotesState {
     loading: boolean
     error: string | null
     query: NotesQuery
+    notesMetadata: Map<number, NoteMetadata>
+
+}
+
+interface NoteMetadata {
+    enhanced_count: number
+    quiz_count: number
+    question_count: number
+    summary_count: number
 }
 
 interface NotesActions {
@@ -20,7 +31,11 @@ interface NotesActions {
     selectNote: (note: Note | null) => void
     setQuery: (query: Partial<NotesQuery>) => void
     clearError: () => void
+    fetchNoteMetadata: (noteId: number) => Promise<void>
+
 }
+
+enableMapSet()
 
 export const useNotesStore = create<NotesState & NotesActions>()(
     immer((set, get) => ({
@@ -30,6 +45,7 @@ export const useNotesStore = create<NotesState & NotesActions>()(
         loading: false,
         error: null,
         query: { page: 1, page_size: 20 },
+        notesMetadata: new Map(),
 
         // Actions
         fetchNotes: async (newQuery) => {
@@ -115,6 +131,7 @@ export const useNotesStore = create<NotesState & NotesActions>()(
             })
         },
 
+
         setQuery: (newQuery) => {
             set((state) => {
                 state.query = { ...state.query, ...newQuery }
@@ -125,6 +142,18 @@ export const useNotesStore = create<NotesState & NotesActions>()(
             set((state) => {
                 state.error = null
             })
+        },
+        fetchNoteMetadata: async (noteId) => {
+            try {
+                const response = await api.notes.metadata(noteId)
+                if (response.success && response.data) {
+                    set((state) => {
+                        state.notesMetadata.set(noteId, response.data!)
+                    })
+                }
+            } catch (error) {
+                console.error('Failed to fetch metadata:', error)
+            }
         },
     }))
 )

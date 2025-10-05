@@ -58,3 +58,10 @@ export interface TaskResponse {
     stream_channel?: string
     ws_url?: string
 }
+
+export interface NoteMeta {
+    enhanced_count: number
+    quiz_count: number
+    question_count: number
+    summary_count: number
+}

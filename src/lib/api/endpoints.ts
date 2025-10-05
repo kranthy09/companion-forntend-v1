@@ -8,9 +8,9 @@ import type {
     User,
 } from '@/types/auth'
 import type {
-    CentralTaskResponse,
     Note,
     NoteCreate,
+    NoteMeta,
     NoteUpdate,
     NotesQuery,
     TaskResponse,
@@ -84,12 +84,16 @@ export const api = {
         summaries: (noteId: number) =>
             apiClient.get<SavedSummary[]>(`/notes/summaries/${noteId}`),
 
+        metadata: (id: number) =>
+            apiClient.get<NoteMeta>(`/notes/${id}/metadata`),
+
 
     },
     questions: {
         list: (noteId: number) =>
             apiClient.get<Question[]>(`/notes/${noteId}/questions`),
     },
+
 
     // AI/Ollama
     ollama: {
