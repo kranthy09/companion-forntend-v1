@@ -12,6 +12,10 @@ const config: Config = {
         sans: ['Inter', 'sans-serif'],
         serif: ['Crimson Text', 'serif'],
       },
+      backgroundImage: {
+        'cool-gradient': 'linear-gradient(to bottom right, #f0f9ff, #e0f2fe, #dbeafe)',
+        'dark-cool-gradient': 'linear-gradient(to bottom right, #0f172a, #1e293b, #1e3a8a)',
+      },
       colors: {
         primary: {
           50: '#eff6ff',
@@ -22,7 +26,8 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [require("@tailwindcss/typography")],
+
 }
 
 export default config

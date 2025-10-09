@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, FileText, Settings, ChevronLeft, ChevronRight, FileEditIcon } from 'lucide-react'
 
 interface SidebarProps {
     isOpen: boolean
@@ -13,6 +13,8 @@ interface SidebarProps {
 const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Notes', href: '/notes', icon: FileText },
+    { name: 'Blogs', href: '/blog', icon: FileEditIcon },
+
 ]
 
 const bottomNavigation = [

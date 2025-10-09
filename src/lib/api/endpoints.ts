@@ -1,7 +1,6 @@
 // src/lib/api/endpoints.ts
 import { apiClient } from './client'
 import type {
-    LoginData,
     RegisterData,
     AuthResponse,
     Token,
@@ -19,7 +18,7 @@ import type { Quiz, QuizAnswers, QuizSubmitResponse } from '@/types/quiz'
 import type { SavedSummary } from '@/types/summary'
 import type { Question } from '@/types/questions'
 import type { EnhancedNote } from '@/types/notes'
-import type { APIResponse, TaskStatus } from '@/types/api'
+import { BlogQuery, BlogCategory, BlogCommentCreate, BlogCommentResponse, BlogPost, BlogPostCreate, BlogPostUpdate, BlogListResponse } from '@/types/blog'
 
 export const api = {
     // Authentication
@@ -116,4 +115,61 @@ export const api = {
     tasks: {
         status: (taskId: string) => apiClient.get(`/users/task_status/?task_id=${taskId}`),
     },
+    // Blog API Endpoints
+    // src/lib/api/endpoints.ts
+    blog: {
+        // GET /blog/posts
+        list: (params: BlogQuery = {}) => {
+            const searchParams = new URLSearchParams()
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                    searchParams.append(key, String(value))
+                }
+            })
+            return apiClient.get<BlogListResponse>(`/blog/posts?${searchParams.toString()}`)
+        },
+
+        // POST /blog/posts
+        create: (data: BlogPostCreate) =>
+            apiClient.post<BlogPost>(`/blog/posts`, data),
+
+        // GET /blog/posts/{post_id}
+        getById: (id: number, query: { increment_view?: boolean } = {}) => {
+            const searchParams = new URLSearchParams()
+            if (query.increment_view !== undefined) {
+                searchParams.append('increment_view', String(query.increment_view))
+            }
+            return apiClient.get<BlogPost>(
+                `/blog/posts/${id}?${searchParams.toString()}`
+            )
+        },
+
+        // GET /blog/posts/slug/{slug}
+        getBySlug: (slug: string, query: { increment_view?: boolean } = {}) => {
+            const searchParams = new URLSearchParams()
+            if (query.increment_view !== undefined) {
+                searchParams.append('increment_view', String(query.increment_view))
+            }
+            return apiClient.get<BlogPost>(
+                `/blog/posts/slug/${slug}?${searchParams.toString()}`
+            )
+        },
+
+        // PUT /blog/posts/{id}
+        update: (id: number, data: BlogPostUpdate) =>
+            apiClient.put<BlogPost>(`/blog/posts/${id}`, data),
+
+        // DELETE /blog/posts/{id}
+        delete: (id: number) => apiClient.delete(`/blog/posts/${id}`),
+
+        // GET /blog/categories
+        categories: () => apiClient.get<BlogCategory[]>(`/blog/categories`),
+
+        // POST /blog/posts/{id}/comments
+        addComment: (postId: number, data: BlogCommentCreate) =>
+            apiClient.post<BlogCommentResponse>(`/blog/posts/${postId}/comments`, data),
+
+    },
+
+
 }
