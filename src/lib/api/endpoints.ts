@@ -19,6 +19,7 @@ import type { SavedSummary } from '@/types/summary'
 import type { Question } from '@/types/questions'
 import type { EnhancedNote } from '@/types/notes'
 import { BlogQuery, BlogCategory, BlogCommentCreate, BlogCommentResponse, BlogPost, BlogPostCreate, BlogPostUpdate, BlogListResponse } from '@/types/blog'
+import type { MCPChatRequest, MCPChatResponse, MCPTool } from '@/types/mcp'
 
 export const api = {
     // Authentication
@@ -170,6 +171,18 @@ export const api = {
             apiClient.post<BlogCommentResponse>(`/blog/posts/${postId}/comments`, data),
 
     },
+    mcp: {
+        chat: (data: MCPChatRequest) =>
+            apiClient.post<MCPChatResponse>('/mcp/chat', data),
 
+        getTools: () =>
+            apiClient.get<MCPTool[]>('/mcp/tools'),
+
+        executeCommand: (data: {
+            command: string
+            params?: Record<string, unknown>
+        }) =>
+            apiClient.post('/mcp/execute', data)
+    }
 
 }

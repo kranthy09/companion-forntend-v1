@@ -2,6 +2,30 @@
 import { APIError, APIResponse } from '@/types/api'
 import { CookieManager } from '@/lib/cookies'
 
+export interface APIMCPResponse<T> {
+    data?: T
+    error?: {
+        message: string
+        code?: string
+    }
+}
+
+export function assertResponseData<T>(
+    response: APIResponse<T>
+): asserts response is APIResponse<T> & { data: T } {
+    if (!response.data) {
+        throw new Error(response.error?.message || 'No data in response')
+    }
+}
+
+
+// Safe data extractor
+export function getResponseData<T>(response: APIResponse<T>): T {
+    assertResponseData(response)
+    return response.data
+}
+
+
 class APIClient {
     private baseURL = process.env.NEXT_PUBLIC_API_URL!
     private isRefreshing = false
