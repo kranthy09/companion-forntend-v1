@@ -25,6 +25,17 @@ export interface RegisterData {
     phone?: string
 }
 
+export interface LoginResponse {
+    access_token: string
+    refresh_token: string
+    token_type: 'bearer'
+}
+
+export interface SessionResponse {
+    authenticated: boolean
+    user: User | null
+}
+
 export interface Token {
     access_token: string
     refresh_token: string

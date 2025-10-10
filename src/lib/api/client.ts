@@ -44,17 +44,21 @@ class APIClient {
         this.isRefreshing = true
 
         try {
+            // Get refresh token from cookie or storage
+            const refreshToken = CookieManager.getRefreshToken()
+            if (!refreshToken) throw new Error('No refresh token')
+
             const response = await fetch(`${this.baseURL}/auth/refresh`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: refreshToken })
             })
 
             if (!response.ok) throw new Error('Refresh failed')
 
             this.failedQueue.forEach(({ resolve }) => resolve(true))
             this.failedQueue = []
-
             return true
         } catch (error) {
             this.failedQueue.forEach(({ reject }) => reject(error))

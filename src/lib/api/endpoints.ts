@@ -3,8 +3,10 @@ import { apiClient } from './client'
 import type {
     RegisterData,
     AuthResponse,
-    Token,
+    LoginResponse,
+    SessionResponse,
     User,
+    LoginData,
 } from '@/types/auth'
 import type {
     Note,
@@ -24,15 +26,17 @@ import type { MCPChatRequest, MCPChatResponse, MCPTool } from '@/types/mcp'
 export const api = {
     // Authentication
     auth: {
-        login: (data: { username: string; password: string }) =>
-            apiClient.post<Token>('/auth/login', data, {}, true),
+        login: (data: LoginData) =>
+            apiClient.post<LoginResponse>('/auth/login', data, {}, true),
 
         register: (data: RegisterData) =>
             apiClient.post<AuthResponse>('/auth/register', data, {}, true),
 
-        logout: () => apiClient.post('/auth/logout'),
+        logout: () =>
+            apiClient.post('/auth/logout'),
 
-        session: () => apiClient.get<{ authenticated: boolean; user?: User }>('/auth/session'),
+        session: () =>
+            apiClient.get<SessionResponse>('/auth/session'),
     },
 
     // User Profile
