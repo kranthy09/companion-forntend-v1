@@ -1,30 +1,82 @@
-// src/hooks/useSummaryStreaming.ts
-import { useSSEStream } from "./useSSEStreaming"
-import { CookieManager } from "@/lib/cookies"
+import { useState, useCallback } from 'react'
+import { blogStreamingService } from '@/lib/streaming/blogService'
 
-export function useBlogStreaming(noteId: number) {
-    const { isStreaming, streamedContent, error, taskId, startStreaming, stopStreaming } =
-        useSSEStream()
+interface BlogSection {
+    type: 'heading' | 'description' | 'main'
+    content: string
+    isComplete: boolean
+}
 
-    const startSummary = () => {
-        const csrf = CookieManager.getCSRFToken()
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL!
 
-        startStreaming(`${baseUrl}/blog/generate/stream`, {
-            method: "POST",
-            headers: { "X-CSRF-Token": csrf || "" },
-            body: { note_id: noteId },
-            autoReconnect: true,
-            maxRetries: 5,
-            retryDelay: 3000,
-            onStart: (tid) => console.log("🟢 Stream started:", tid),
-            onChunk: (chunk) => console.log("📦 Chunk:", chunk),
-            onComplete: (text) => console.log("✅ Completed, total chars:", text.length),
-            onError: (err) => console.error("❌ Stream error:", err),
-            onReconnect: (attempt) => console.log(`♻️ Reconnecting (${attempt})...`),
-            onReconnectSuccess: () => console.log("🔄 Reconnected successfully"),
-        })
+export function useBlogStream() {
+    const [blogId, setBlogId] = useState<number | null>(null)
+    const [sections, setSections] = useState(new Map<string, BlogSection>())
+    const [isStreaming, setIsStreaming] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    const startStream = useCallback(
+        async (title: string, content: string) => {
+            setBlogId(null)
+            setSections(new Map())
+            setError(null)
+            setIsStreaming(true)
+
+            await blogStreamingService.startStream(
+                '/blog/posts/create-stream',
+                { title, content },
+                {
+                    onBlogCreated: (id) => setBlogId(id),
+                    onChunk: (type, chunk) => {
+                        setSections((prev) => {
+                            const newMap = new Map(prev)
+                            const existing = newMap.get(type)
+                            const newContent = (existing?.content || '') + chunk
+                            newMap.set(type, {
+                                type: type as 'heading' | 'description',
+                                content: newContent,
+                                isComplete: false,
+                            })
+                            return newMap
+                        })
+                    },
+                    onSectionComplete: (type, content) => {
+                        setSections((prev) => {
+                            const newMap = new Map(prev)
+                            const existing = newMap.get(type)
+                            // Keep accumulated content if longer, otherwise use complete
+                            const finalContent = existing && existing.content.length > content.length
+                                ? existing.content
+                                : content
+                            newMap.set(type, {
+                                type: type as 'heading' | 'description',
+                                content: finalContent,
+                                isComplete: true,
+                            })
+                            return newMap
+                        })
+                    },
+                    onComplete: () => setIsStreaming(false),
+                    onError: (err) => {
+                        setError(err)
+                        setIsStreaming(false)
+                    },
+                }
+            )
+        },
+        []
+    )
+
+    const stopStream = useCallback(() => {
+        blogStreamingService.stopStream()
+        setIsStreaming(false)
+    }, [])
+
+    return {
+        blogId,
+        sections,
+        isStreaming,
+        error,
+        startStream,
+        stopStream,
     }
-
-    return { isStreaming, streamedContent, error, taskId, startSummary, stopStreaming }
 }

@@ -100,6 +100,10 @@ class APIClient {
             const data = await response.json()
 
             if (!response.ok) {
+                if (response.status === 401) {
+                    window.location.href = '/auth/login'
+                    throw new APIError('AUTH_002', 'Session expired', 401)
+                }
                 if (response.status === 401 && !skipAuth && !endpoint.includes('/auth/')) {
                     try {
                         await this.refreshToken()
